@@ -1,0 +1,2 @@
+<dialog id="video-dialog" aria-label="Reprodutor de vídeo" class="m-auto w-[960px] max-w-[95vw] rounded bg-white p-3 backdrop:bg-black/80"><button type="button" data-close-video class="mb-2 cursor-pointer px-3 py-2">Fechar vídeo</button><iframe title="Vídeo da Arquidiocese" class="aspect-video w-full" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe></dialog>
+<?php /**PATH D:\www\laravel\arquidiocesedeuberaba\resources\views/site/partials/video-dialog.blade.php ENDPATH**/ ?>

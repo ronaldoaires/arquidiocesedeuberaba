@@ -19,7 +19,16 @@
 <body class="bg-white text-[#646464] antialiased" style="--hero-image:url('{{ asset('assets/site/bg-slide.jpg') }}');--quick-image:url('{{ asset('assets/site/bg-acesso-rapido.webp') }}');--radio-image:url('{{ asset('assets/site/bg-radios.webp') }}');--media-image:url('{{ asset('assets/site/bg-midias.jpg') }}')">
 <a href="#main-content" class="sr-only focus:not-sr-only focus:block focus:bg-white focus:p-3">Ir para o conteúdo</a>
 @include('site.partials.header')
-<main id="main-content">@yield('content')</main>
+
+<main
+    id="main-content"
+    @if(in_array($module['source'] ?? null, ['clero', 'paroquia'], true))
+        data-protected-content
+    @endif
+>
+    @yield('content')
+</main>
+
 @include('site.partials.footer')
 <dialog id="media-dialog" aria-label="Imagem ampliada" class="m-auto max-h-[95vh] max-w-[95vw] rounded bg-white p-3 backdrop:bg-black/80">
     <button type="button" data-close-dialog class="mb-2 block min-h-11 px-3" autofocus>Fechar imagem</button>
@@ -32,6 +41,12 @@
 </dialog>
 @include('site.partials.video-dialog')
 <x-site.file-dialog />
+
+
+@if(in_array($module['source'] ?? null, ['clero', 'paroquia'], true))
+    <script src="{{ asset('js/content-protection.js') }}" defer></script>
+@endif
+
 </body>
 </html>
 
