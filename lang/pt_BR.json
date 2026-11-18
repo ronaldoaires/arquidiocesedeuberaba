@@ -1,0 +1,10 @@
+{
+    "Not Found": "Página não encontrada",
+    "Forbidden": "Acesso negado",
+    "Server Error": "Erro no servidor",
+    "Service Unavailable": "Serviço indisponível",
+    "Page Expired": "Página expirada",
+    "Too Many Requests": "Muitas solicitações",
+    "Unauthorized": "Acesso não autorizado",
+    "Go Home": "Voltar ao início"
+}

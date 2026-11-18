@@ -1,0 +1,14 @@
+@php
+    [$label,$type,$required] = config('contact.support_fields.'.$field);
+    $label = ['parish_name'=>'Nome da Paróquia/Órgão','parish_address'=>'Endereço','parish_phone'=>'Telefone','parish_email'=>'E-mail','contact_name'=>'Nome do Responsável pela Solicitação','contact_phone'=>'Telefone do Responsável','contact_email'=>'E-mail do Responsável','event_title'=>'Título do Evento','event_date'=>'Data(s) do Evento','event_time'=>'Horário(s)','event_location'=>'Local','event_description'=>'Descrição Detalhada do Evento','event_type'=>'Tipo de Evento','other_event_type'=>'Especifique o tipo de evento','has_speaker'=>'Há algum palestrante ou pessoa de destaque no evento?','has_cost'=>'O evento possui algum custo para participação?','materials_text'=>'Texto','materials_photos'=>'Fotos','materials_videos'=>'Vídeos','materials_posters'=>'Cartazes','materials_other_enabled'=>'Outros','resource_other_enabled'=>'Outros'][$field] ?? $label;
+    $span = match($field) {'parish_address'=>8,'parish_phone'=>4,'parish_email','contact_name','contact_phone','contact_email','event_date','event_time','promotion_start','materials_deadline'=>6,default=>12};
+    $condition = ['other_event_type'=>['event_type','other'],'speaker_name'=>['has_speaker','yes'],'speaker_description'=>['has_speaker','yes'],'event_cost'=>['has_cost','yes'],'materials_other'=>['materials_other_enabled','1'],'resource_other'=>['resource_other_enabled','1']][$field] ?? null;
+@endphp
+<div class="support-field support-span-{{ $span }}" @if($condition) data-condition-field="{{ $condition[0] }}" data-condition-value="{{ $condition[1] }}" @if(old($condition[0])!==$condition[1]) hidden @endif @endif>
+    @if($type==='checkbox')<label class="flex items-center gap-2"><input type="checkbox" name="{{ $field }}" value="1" @checked(old($field))>{{ $label }}</label>
+    @elseif($type==='select')<fieldset><legend class="mb-2">{{ $label }}@if($required)<span class="text-[#dc3545]"> *</span>@endif</legend><div class="flex flex-wrap gap-4">@foreach(config('contact.support_options.'.$field) as $value=>$option)<label class="flex items-center gap-2"><input type="radio" name="{{ $field }}" value="{{ $value }}" @required($required) @checked(old($field,in_array($field,['has_speaker','has_cost'])?'no':'')===$value)>{{ $option }}</label>@endforeach</div></fieldset>
+    @else<label class="mb-2 block" for="support-{{ $field }}">{{ $label }}@if($required)<span class="text-[#dc3545]"> *</span>@endif</label>
+        @if($type==='textarea')<textarea id="support-{{ $field }}" name="{{ $field }}" rows="{{ $field==='event_description'?4:3 }}" class="form-field" @required($required)>{{ old($field) }}</textarea>
+        @else<input id="support-{{ $field }}" name="{{ $field }}" type="{{ $type }}" class="form-field" value="{{ old($field) }}" @required($required)>@endif
+    @endif
+</div>
