@@ -4,6 +4,7 @@ namespace App\Filament\Support;
 
 use App\Models\User;
 use App\Services\MediaLifecycle;
+use App\Services\Newsletter\QuickCampaign;
 use App\Support\ContentRegistry;
 use App\Support\PublicMedia;
 use Filament\Actions\Action;
@@ -205,6 +206,11 @@ abstract class ContentResource extends Resource
         if (in_array(static::$sourceTable, ['paroquia', 'artigo', 'noticia', 'clero'], true)) {
             $components[] = Toggle::make('is_active')->label('Ativo')->default(true)->columnSpanFull();
         }
+        if (in_array(static::$sourceTable, ['noticia', 'artigo', 'evento'], true)) {
+            $components[] = Toggle::make('send_newsletter')->label('Enviar por newsletter ao cadastrar')
+                ->helperText('Cria uma campanha para este conteúdo.')
+                ->default(false)->visible(fn (string $operation): bool => $operation === 'create')->columnSpanFull();
+        }
 
         return $schema->components($components)->columns(2);
     }
@@ -217,6 +223,8 @@ abstract class ContentResource extends Resource
 
         return CreateAction::make()->modelLabel(static::getModelLabel())->pluralModelLabel(static::getPluralModelLabel())->createAnother(false)->successRedirectUrl(fn (Component $livewire): ?string => $livewire instanceof RelatedContentManager ? null : static::getUrl('index'))
             ->using(function (array $data, string $model, CreateAction $action): Model {
+                $sendNewsletter = (bool) ($data['send_newsletter'] ?? false);
+                unset($data['send_newsletter']);
                 $paths = static::isPhotoResource() ? array_values((array) ($data['photo_path'] ?? [])) : [null];
                 $first = null;
                 foreach ($paths as $path) {
@@ -236,6 +244,10 @@ abstract class ContentResource extends Resource
                         $record->save();
                     }
                     $first ??= $record;
+                }
+
+                if ($sendNewsletter && $first instanceof \App\Models\ContentModel) {
+                    app(QuickCampaign::class)->send($first);
                 }
 
                 return $first;

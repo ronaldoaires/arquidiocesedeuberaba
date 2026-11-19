@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Articles\Pages;
 
 use App\Filament\Resources\Articles\ArticleResource;
 use App\Services\MediaLifecycle;
+use App\Services\Newsletter\QuickCampaign;
 use Filament\Resources\Pages\CreateRecord;
 use Filament\Schemas\Components\Component;
 use Filament\Schemas\Components\Section;
@@ -15,6 +16,16 @@ class CreateArticle extends CreateRecord
 
     protected static bool $canCreateAnother = false;
 
+    private bool $sendNewsletter = false;
+
+    protected function mutateFormDataBeforeCreate(array $data): array
+    {
+        $this->sendNewsletter = (bool) ($data['send_newsletter'] ?? false);
+        unset($data['send_newsletter']);
+
+        return $data;
+    }
+
     protected function getRedirectUrl(): string
     {
         return static::getResource()::getUrl('index');
@@ -23,6 +34,9 @@ class CreateArticle extends CreateRecord
     protected function afterCreate(): void
     {
         app(MediaLifecycle::class)->finishForm($this->getId());
+        if ($this->sendNewsletter) {
+            app(QuickCampaign::class)->send($this->record);
+        }
     }
 
     #[Unexposed]
