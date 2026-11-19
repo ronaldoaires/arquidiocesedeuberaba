@@ -8,7 +8,9 @@ use App\Filament\Resources\ClergyMembers\Pages\ManageClergyMembers;
 use App\Filament\Resources\ClergyMembers\RelationManagers\AssignmentsRelationManager;
 use App\Filament\Support\ContentResource;
 use App\Models\ClergyMember;
+use App\Support\PresentationDate;
 use Filament\Forms\Components\Field;
+use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
@@ -33,6 +35,30 @@ class ClergyMemberResource extends ContentResource
         foreach ($labels as $name => $label) {
             $fields[$name]->label($label);
         }
+        $isCompleteDate = static fn (?string $value): bool => preg_match('/^(\d{2})\/(\d{2})\/(\d{4})$/', (string) $value, $parts) === 1
+            && (int) $parts[3] >= 1000 && checkdate((int) $parts[2], (int) $parts[1], (int) $parts[3]);
+        foreach (['birthday_text', 'ordination_date_text'] as $name) {
+            $fields[$name]->placeholder('dd/mm/aaaa')
+                ->mask(fn (?ClergyMember $record): ?string => blank($record?->getAttribute($name)) || $isCompleteDate($record->getAttribute($name)) ? '99/99/9999' : null)
+                ->rule('date_format:d/m/Y', fn (?ClergyMember $record): bool => blank($record?->getAttribute($name)) || $isCompleteDate($record->getAttribute($name)))
+                ->rule('regex:/^\d{2}\/\d{2}\/[1-9]\d{3}$/', fn (?ClergyMember $record): bool => blank($record?->getAttribute($name)) || $isCompleteDate($record->getAttribute($name)))
+                ->validationMessages([
+                    'date_format' => 'Digite uma data válida no formato dd/mm/aaaa.',
+                    'regex' => 'Digite uma data válida com ano a partir de 1000.',
+                ]);
+        }
+        $fields['presentation_date'] = TextInput::make('presentation_date')
+            ->label('Data de Apresentação')
+            ->placeholder('dd/mm/aaaa')
+            ->mask('99/99/9999')
+            ->rule('date_format:d/m/Y')
+            ->rule('regex:/^\d{2}\/\d{2}\/[1-9]\d{3}$/')
+            ->validationMessages([
+                'date_format' => 'Digite uma data válida no formato dd/mm/aaaa.',
+                'regex' => 'Digite uma data válida com ano a partir de 1000.',
+            ])
+            ->formatStateUsing(fn ($state): ?string => filled($state) ? \Carbon\CarbonImmutable::parse($state)->format('d/m/Y') : null)
+            ->dehydrateStateUsing(fn (?string $state): ?string => PresentationDate::toIso($state));
         $fields['cover_path']->columnSpanFull();
         $group = fn (array $names): array => array_map(fn (string $name): Field => $fields[$name], $names);
 

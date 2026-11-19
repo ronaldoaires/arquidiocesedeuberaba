@@ -30,7 +30,7 @@ abstract class ContentModel extends Model
             $fields = array_column($module['columns'], 'name');
             if ($record->exists && $module['route'] && $record->isDirty('slug') && filled($record->getRawOriginal('slug'))) {
                 DB::table('content_redirects')->updateOrInsert(
-                    ['old_path' => '/'.$module['route'].'/'.$record->getRawOriginal('slug')],
+                    ['old_path' => '/' . $module['route'] . '/' . $record->getRawOriginal('slug')],
                     ['source_table' => static::$sourceTable, 'record_id' => $record->id, 'created_at' => now(), 'updated_at' => now()],
                 );
             }
@@ -54,11 +54,11 @@ abstract class ContentModel extends Model
                 $record->created_by = auth()->id();
             }
         });
-        static::updated(fn (ContentModel $record) => app(MediaLifecycle::class)->changed($record));
-        static::deleting(fn (ContentModel $record) => app(MediaLifecycle::class)->deleteGalleryPhotos($record));
-        static::deleted(fn (ContentModel $record) => app(MediaLifecycle::class)->deleted($record));
-        static::restored(fn (ContentModel $record) => DB::connection($record->getConnectionName())->afterCommit(fn () => app(MediaLifecycle::class)->restored($record)));
-        static::saved(fn (ContentModel $record) => app(MediaTracker::class)->track($record));
+        static::updated(fn(ContentModel $record) => app(MediaLifecycle::class)->changed($record));
+        static::deleting(fn(ContentModel $record) => app(MediaLifecycle::class)->deleteGalleryPhotos($record));
+        static::deleted(fn(ContentModel $record) => app(MediaLifecycle::class)->deleted($record));
+        static::restored(fn(ContentModel $record) => DB::connection($record->getConnectionName())->afterCommit(fn() => app(MediaLifecycle::class)->restored($record)));
+        static::saved(fn(ContentModel $record) => app(MediaTracker::class)->track($record));
     }
 
     public function scopePublished(Builder $query): Builder
@@ -67,7 +67,8 @@ abstract class ContentModel extends Model
         if (in_array('is_active', $fields, true)) {
             $query->where('is_active', true);
         }
-        if (static::$sourceTable === 'noticia') {
+
+        if (in_array(static::$sourceTable, ['noticia', 'artigo'], true)) {
             $query->where('created_at', '<=', now());
         }
 
@@ -78,14 +79,14 @@ abstract class ContentModel extends Model
     {
         $field = ContentRegistry::get(static::$sourceTable)['title'];
 
-        return (string) ($this->getAttribute($field) ?: 'Registro '.$this->getKey());
+        return (string) ($this->getAttribute($field) ?: 'Registro ' . $this->getKey());
     }
 
     public function getPublicUrlAttribute(): ?string
     {
         $route = ContentRegistry::get(static::$sourceTable)['route'];
 
-        return $route && $this->slug ? url($route.'/'.$this->slug) : null;
+        return $route && $this->slug ? url($route . '/' . $this->slug) : null;
     }
 
     public function getImageUrlAttribute(): ?string
@@ -95,7 +96,7 @@ abstract class ContentModel extends Model
             return null;
         }
 
-        return url('storage/'.$path);
+        return url('storage/' . $path);
     }
 
     public function getThumbnailUrlAttribute(): ?string
@@ -104,9 +105,9 @@ abstract class ContentModel extends Model
         if (! $path) {
             return null;
         }
-        $thumbnail = dirname($path).'/thumbs/'.basename($path);
+        $thumbnail = dirname($path) . '/thumbs/' . basename($path);
 
-        return Storage::disk('public')->exists($thumbnail) ? url('storage/'.$thumbnail) : $this->image_url;
+        return Storage::disk('public')->exists($thumbnail) ? url('storage/' . $thumbnail) : $this->image_url;
     }
 
     public function getSafeBodyAttribute(): string

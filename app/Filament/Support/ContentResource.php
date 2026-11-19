@@ -188,7 +188,7 @@ abstract class ContentResource extends Resource
             }
             $field->label(static::$sourceTable === 'paroquia' ? (['service_hours' => 'Horários de Atendimento da Secretaria Paroquial', 'office_hours' => 'Horário de Missa'][$name] ?? $column['label']) : $column['label']);
             if (in_array(static::$sourceTable, ['artigo', 'noticia'], true)) {
-                $field->label(['created_at' => 'Data de Cadastro', 'body_html' => 'Texto'][$name] ?? $column['label']);
+                $field->label(['created_at' => 'Data de Publicação', 'body_html' => 'Texto'][$name] ?? $column['label']);
             }
             if ($name === $module['title'] && $name !== 'id') {
                 $field->required();

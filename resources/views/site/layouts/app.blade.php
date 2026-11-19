@@ -20,9 +20,15 @@
 <a href="#main-content" class="sr-only focus:not-sr-only focus:block focus:bg-white focus:p-3">Ir para o conteúdo</a>
 @include('site.partials.header')
 
+
+@php
+    $isProtectedPage = in_array($module['source'] ?? null, ['clero', 'paroquia'], true)
+        || request()->is('pagina/brasao');
+@endphp
+
 <main
     id="main-content"
-    @if(in_array($module['source'] ?? null, ['clero', 'paroquia'], true))
+    @if($isProtectedPage)
         data-protected-content
     @endif
 >
@@ -42,9 +48,8 @@
 @include('site.partials.video-dialog')
 <x-site.file-dialog />
 
-
-@if(in_array($module['source'] ?? null, ['clero', 'paroquia'], true))
-    <script src="{{ asset('js/content-protection.js') }}" defer></script>
+@if($isProtectedPage)
+    <script src="{{ asset('js/content-protection.js') }}?v=2" defer></script>
 @endif
 
 </body>
