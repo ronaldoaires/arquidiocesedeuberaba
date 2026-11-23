@@ -123,6 +123,8 @@ Before relying on a package's API, confirm its installed version:
 
 ## Required project conventions
 
+- `C:/www/www/arquidiocesedeuberaba` is the legacy system and is read-only reference material. Implement site changes in this Laravel project at `D:/www/laravel/arquidiocesedeuberaba`.
+
 - Write all identifiers, classes, methods, variables, namespaces, comments, PHPDoc, tests, internal route names and generated technical documentation in English.
 - Write all user-facing labels, messages, validation feedback, accessibility text and emails in Brazilian Portuguese (pt_BR).
 - Preserve Portuguese public legacy URLs and original imported data for compatibility; map legacy database fields explicitly to English destination fields.

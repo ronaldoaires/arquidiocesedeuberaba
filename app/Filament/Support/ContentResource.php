@@ -2,6 +2,7 @@
 
 namespace App\Filament\Support;
 
+use App\Models\ContentModel;
 use App\Models\User;
 use App\Services\MediaLifecycle;
 use App\Services\Newsletter\QuickCampaign;
@@ -246,7 +247,7 @@ abstract class ContentResource extends Resource
                     $first ??= $record;
                 }
 
-                if ($sendNewsletter && $first instanceof \App\Models\ContentModel) {
+                if ($sendNewsletter && $first instanceof ContentModel) {
                     app(QuickCampaign::class)->send($first);
                 }
 
@@ -329,7 +330,7 @@ abstract class ContentResource extends Resource
             $columns[] = TextColumn::make('publication_period')->label('Mês/Ano')->sortable(query: fn (Builder $query, string $direction): Builder => $query->orderBy('year', $direction)->orderBy('month', $direction));
             $columns[] = TextColumn::make('downloads')->label('Downloads')->default(0)->numeric(decimalPlaces: 0, locale: 'pt_BR')->sortable();
         }
-        if (static::$sourceTable === 'galeria') {
+        if (in_array(static::$sourceTable, ['galeria', 'pastoral_galeria'], true)) {
             $columns[] = TextColumn::make('photos_count')->label('Fotos')->counts('photos')->numeric(decimalPlaces: 0, locale: 'pt_BR')->sortable();
         }
         if (static::$sourceTable === 'pastoral_downloads' || in_array('visits', array_column($module['columns'], 'name'), true)) {

@@ -6,9 +6,12 @@ use App\Filament\Resources\PastoralGalleryPhotos\PastoralGalleryPhotoResource;
 use App\Filament\Resources\PastoralGroups\Pages\EditPastoralGroup;
 use App\Filament\Resources\PastoralGroups\PastoralGroupResource;
 use App\Filament\Resources\PastoralGroups\RelationManagers\DownloadsRelationManager;
+use App\Filament\Resources\PastoralGroups\RelationManagers\GalleriesRelationManager;
 use App\Filament\Resources\PastoralGroups\RelationManagers\VideosRelationManager;
 use App\Filament\Resources\PastoralVideos\PastoralVideoResource;
 use App\Models\PastoralDownload;
+use App\Models\PastoralGallery;
+use App\Models\PastoralGalleryPhoto;
 use App\Models\PastoralGroup;
 use App\Models\PastoralVideo;
 use App\Models\User;
@@ -16,6 +19,7 @@ use App\Services\YouTubeVideoMetadata;
 use Filament\Actions\Testing\TestAction;
 use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -111,6 +115,78 @@ it('shows and filters file counters without adding editable fields to the parent
         ->mountAction(TestAction::make('create')->table())->assertFormFieldDoesNotExist('visits')->assertFormFieldDoesNotExist('downloads');
 });
 
+it('uploads photos from the pastoral gallery row and shows them on the site without a gallery cover', function (): void {
+    pastoralAdmin();
+    $group = PastoralGroup::factory()->create(['slug' => 'pastoral-com-galeria', 'is_active' => true]);
+    $gallery = PastoralGallery::factory()->create([
+        'pastoral_group_id' => $group->id,
+        'title' => 'Celebração',
+        'cover_path' => null,
+        'is_active' => true,
+    ]);
+    $bytes = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=', true);
+
+    Livewire::test(GalleriesRelationManager::class, ['ownerRecord' => $group, 'pageClass' => EditPastoralGroup::class])
+        ->callAction(TestAction::make('addPhotos')->table($gallery), data: [
+            'photo_path' => [
+                UploadedFile::fake()->createWithContent('primeira.png', $bytes),
+                UploadedFile::fake()->createWithContent('segunda.png', $bytes),
+            ],
+            'is_active' => true,
+        ])->assertHasNoFormErrors()->assertNoRedirect()
+        ->assertTableColumnStateSet('photos_count', 2, $gallery);
+
+    $photos = PastoralGalleryPhoto::where('gallery_id', $gallery->id)->orderBy('id')->get();
+    expect($photos)->toHaveCount(2);
+    foreach ($photos as $photo) {
+        expect($photo->pastoral_group_id)->toBe($group->id);
+        Storage::disk('public')->assertExists($photo->photo_path);
+    }
+
+    $this->get('/pastoral/pastoral-com-galeria')->assertOk()
+        ->assertSee('Celebração')
+        ->assertSee('data-gallery="pastoral-'.$gallery->id.'"', false)
+        ->assertSee(url('storage/'.$photos->first()->photo_path), false)
+        ->assertDontSee(url('storage/'.$photos->last()->photo_path), false)
+        ->assertSee(route('site.pastoral-gallery.photos', ['slug' => $group->slug, 'gallery' => $gallery->id]), false);
+
+    $this->getJson(route('site.pastoral-gallery.photos', ['slug' => $group->slug, 'gallery' => $gallery->id]))
+        ->assertOk()->assertJsonCount(2, 'photos')
+        ->assertJsonPath('photos.1.url', url('storage/'.$photos->last()->photo_path));
+});
+
+it('loads pastoral gallery photos in bounded batches and excludes unpublished photos', function (): void {
+    $group = PastoralGroup::factory()->create(['slug' => 'pastoral-muitas-fotos', 'is_active' => true]);
+    $gallery = PastoralGallery::factory()->create(['pastoral_group_id' => $group->id, 'title' => 'Álbum', 'cover_path' => null, 'is_active' => true]);
+    for ($number = 1; $number <= 25; $number++) {
+        PastoralGalleryPhoto::factory()->create([
+            'gallery_id' => $gallery->id,
+            'pastoral_group_id' => $group->id,
+            'photo_path' => 'content/pastoral_gallery_photos/foto-'.$number.'.jpg',
+            'is_active' => true,
+        ]);
+    }
+    PastoralGalleryPhoto::factory()->create([
+        'gallery_id' => $gallery->id,
+        'pastoral_group_id' => $group->id,
+        'photo_path' => 'content/pastoral_gallery_photos/privada.jpg',
+        'is_active' => false,
+    ]);
+
+    $feedUrl = route('site.pastoral-gallery.photos', ['slug' => $group->slug, 'gallery' => $gallery->id]);
+    $this->get('/pastoral/pastoral-muitas-fotos')->assertOk()
+        ->assertSee('foto-1.jpg')->assertDontSee('foto-25.jpg')->assertDontSee('privada.jpg');
+
+    $firstPage = $this->getJson($feedUrl)->assertOk()->assertJsonCount(24, 'photos')->json();
+    expect($firstPage['next'])->not->toBeNull();
+    $this->getJson($firstPage['next'])->assertOk()->assertJsonCount(1, 'photos')
+        ->assertJsonPath('photos.0.url', url('storage/content/pastoral_gallery_photos/foto-25.jpg'))
+        ->assertJsonPath('next', null);
+
+    $gallery->update(['is_active' => false]);
+    $this->getJson($feedUrl)->assertNotFound();
+});
+
 it('fetches deduplicated YouTube titles in batches and serves subsequent requests from cache', function (): void {
     Http::fake(['www.youtube.com/oembed*' => Http::response(['title' => 'Título automático & original', 'html' => '<script>bad()</script>'])]);
     $service = app(YouTubeVideoMetadata::class);
@@ -157,15 +233,47 @@ it('shows cached title and thumbnail with a watch action while keeping ID-only v
     Http::assertSentCount(1);
 });
 
-it('renders an inline click-to-play video with real cached title without replacing saved source fields', function (): void {
+it('opens a pastoral video in the global dialog with its cached title', function (): void {
     Http::fake(['www.youtube.com/oembed*' => Http::response(['title' => 'Vídeo para assistir'])]);
     $group = PastoralGroup::factory()->create(['title' => 'Pastoral', 'slug' => 'pastoral', 'is_active' => true]);
     PastoralVideo::factory()->create(['pastoral_group_id' => $group->id, 'video_id' => 'abcdefghijk', 'is_active' => true]);
     PastoralVideo::factory()->create(['pastoral_group_id' => $group->id, 'video_id' => 'lmnopqrstuv', 'title' => 'Vídeo inativo', 'is_active' => false]);
-    $this->get('/pastoral/pastoral')->assertOk()->assertSee('Vídeo para assistir')->assertSee('data-inline-video', false)
+    $this->get('/pastoral/pastoral')->assertOk()->assertSee('Vídeo para assistir')->assertSee('data-video', false)
+        ->assertSee('id="video-dialog"', false)
         ->assertSee('https://i.ytimg.com/vi/abcdefghijk/hqdefault.jpg', false)->assertDontSee('Vídeo inativo');
     $this->get('/pastoral/pastoral')->assertOk();
     Http::assertSentCount(1);
+});
+
+it('paginates pastoral videos and downloads independently', function (): void {
+    config(['media.youtube_metadata_enabled' => false]);
+    $group = PastoralGroup::factory()->create(['slug' => 'pastoral-paginada', 'is_active' => true]);
+
+    for ($number = 1; $number <= 9; $number++) {
+        PastoralVideo::factory()->create([
+            'pastoral_group_id' => $group->id,
+            'video_id' => sprintf('video%06d', $number),
+            'title' => 'Vídeo '.$number,
+            'is_active' => true,
+        ]);
+    }
+
+    for ($number = 1; $number <= 12; $number++) {
+        PastoralDownload::factory()->create([
+            'pastoral_group_id' => $group->id,
+            'title' => 'Download '.$number,
+        ]);
+    }
+
+    $this->get('/pastoral/pastoral-paginada')->assertOk()
+        ->assertSee('Vídeo 9')->assertDontSee('Vídeo 1')
+        ->assertSee('Download 12')->assertDontSee('Download 1</h3>', false)
+        ->assertSee('videos_page=2', false)->assertSee('downloads_page=2', false);
+
+    $this->get('/pastoral/pastoral-paginada?videos_page=2&downloads_page=2')->assertOk()
+        ->assertSee('Vídeo 1')->assertDontSee('Vídeo 9')
+        ->assertSee('Download 1')->assertDontSee('Download 12')
+        ->assertSee('videos_page=2', false)->assertSee('downloads_page=2', false);
 });
 
 it('reuses resolved metadata within the request without repeating database cache lookups', function (): void {

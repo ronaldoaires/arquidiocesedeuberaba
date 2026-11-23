@@ -1,7 +1,7 @@
 <article class="site-container py-12"><div class="mx-auto lg:w-5/6">
     <div class="mb-6 rounded-md bg-white p-6 shadow-sm"><div class="editorial-content mt-4 text-[#6c757d]">{!! $record->safe_body !!}</div></div>
     @if(($related['downloads']??collect())->isNotEmpty())
-        <section class="mb-12"><h2 class="pastoral-heading"><i class="fa-solid fa-cloud-arrow-down mr-2" aria-hidden="true"></i>Downloads</h2>
+        <section class="mb-12" id="downloads"><h2 class="pastoral-heading"><i class="fa-solid fa-cloud-arrow-down mr-2" aria-hidden="true"></i>Downloads</h2>
             <div class="overflow-hidden rounded-md shadow-sm">
                 @foreach($related['downloads'] as $download)
                     @php($extension=strtolower(pathinfo($download->file_path,PATHINFO_EXTENSION)))
@@ -13,14 +13,33 @@
                     </div>
                 @endforeach
             </div>
+            @include('site.partials.pagination', ['records' => $related['downloads'], 'paginationLabel' => 'Páginas de downloads', 'paginationUrl' => fn (int $number): string => $related['downloads']->url($number)])
         </section>
     @endif
     @if(($related['videos']??collect())->isNotEmpty())
-        <section class="mb-12"><h2 class="pastoral-heading"><i class="fa-solid fa-video mr-2" aria-hidden="true"></i>Vídeos</h2>
+        <section class="mb-12" id="videos"><h2 class="pastoral-heading"><i class="fa-solid fa-video mr-2" aria-hidden="true"></i>Vídeos</h2>
             <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">@foreach($related['videos'] as $video)<x-site.youtube-video :video="$video" />@endforeach</div>
+            @include('site.partials.pagination', ['records' => $related['videos'], 'paginationLabel' => 'Páginas de vídeos', 'paginationUrl' => fn (int $number): string => $related['videos']->url($number)])
         </section>
     @endif
-    @if(($related['galleries']??collect())->isNotEmpty())<section class="mb-12"><h2 class="pastoral-heading"><i class="fa-solid fa-images mr-2" aria-hidden="true"></i>Galeria de Fotos</h2><div class="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">@foreach($related['galleries'] as $gallery)<div><p class="mb-4">{{ $gallery->title }}</p><a href="{{ $gallery->image_url }}" data-lightbox data-gallery="pastoral-{{ $gallery->id }}"><img src="{{ $gallery->thumbnail_url }}" alt="{{ $gallery->title??'Galeria' }}" loading="lazy" class="h-[200px] w-full rounded object-cover shadow-sm"></a>@foreach($gallery->photos()->published()->get() as $photo)<a href="{{ $photo->image_url }}" data-lightbox data-gallery="pastoral-{{ $gallery->id }}" class="hidden"><img src="{{ $photo->thumbnail_url }}" alt="{{ $photo->title??'Foto da pastoral' }}" loading="lazy"></a>@endforeach</div>@endforeach</div></section>@endif
+    @if(($related['galleries']??collect())->isNotEmpty())
+        <section class="mb-12"><h2 class="pastoral-heading"><i class="fa-solid fa-images mr-2" aria-hidden="true"></i>Galeria de Fotos</h2>
+            <div class="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
+                @foreach($related['galleries'] as $gallery)
+                    @php($firstPhoto = $gallery->image_url ? null : $gallery->photos()->published()->whereNotNull('photo_path')->where('photo_path', '!=', '')->orderBy('id')->first(['id', 'title', 'photo_path']))
+                    @php($coverUrl = $gallery->image_url ?: $firstPhoto?->image_url)
+                    <div>
+                        <p class="mb-4">{{ $gallery->title }}</p>
+                        @if($coverUrl)
+                            <a href="{{ $coverUrl }}" data-lightbox data-gallery="pastoral-{{ $gallery->id }}" data-gallery-feed="{{ route('site.pastoral-gallery.photos', ['slug' => $record->slug, 'gallery' => $gallery->id]) }}">
+                                <img src="{{ $gallery->thumbnail_url ?: $firstPhoto?->thumbnail_url }}" alt="{{ $gallery->title ?: 'Galeria' }}" loading="lazy" class="h-[200px] w-full rounded object-cover shadow-sm">
+                            </a>
+                        @endif
+                    </div>
+                @endforeach
+            </div>
+        </section>
+    @endif
     <section class="mt-12 rounded-md bg-[#f8f9fa] p-12 text-center"><h2 class="mb-6 text-2xl leading-[1.2]">Fale Conosco</h2><p class="mb-4 text-xl"><i class="fa-solid fa-location-dot mr-2 text-[#dc3545]" aria-hidden="true"></i>{{ $record->address??'Endereço não informado' }}</p>@if($record->email)<p class="mb-6"><i class="fa-solid fa-envelope mr-2 text-[#0d6efd]" aria-hidden="true"></i>{{ $record->email }}</p>@endif<div class="flex justify-center gap-4 text-[1.8rem]">@foreach(['facebook'=>['fa-facebook','text-[#0d6efd]'],'instagram'=>['fa-instagram','text-[#dc3545]'],'youtube'=>['fa-youtube','text-[#dc3545]'],'whatsapp'=>['fa-whatsapp','text-[#198754]']] as $field=>[$icon,$color])@if($record->{$field})<a href="{{ $field==='whatsapp'?'https://wa.me/'.preg_replace('/\D/','',$record->{$field}):$record->{$field} }}" target="_blank" rel="noopener" aria-label="{{ ucfirst($field) }} da pastoral" class="{{ $color }}"><i class="fa-brands {{ $icon }}" aria-hidden="true"></i></a>@endif @endforeach</div></section>
     @if($record->image_url)<img class="w-full" src="{{ $record->image_url }}" alt="{{ $title }}">@endif
 </div></article>

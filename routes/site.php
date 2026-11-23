@@ -44,6 +44,7 @@ Route::name('site.')->group(function (): void {
     Route::get('/revistas/{page?}', [ContentController::class, 'index'])->defaults('module', 'revista')->whereNumber('page')->name('magazines');
     Route::get('/pastoral/arquivos/{download}/ler', [PastoralDownloadController::class, 'preview'])->whereNumber('download')->name('pastoral-files.preview');
     Route::get('/pastoral/arquivos/{download}/baixar', [PastoralDownloadController::class, 'download'])->whereNumber('download')->name('pastoral-files.download');
+    Route::get('/pastoral/{slug}/galerias/{gallery}/fotos', [ContentController::class, 'pastoralGalleryPhotos'])->whereNumber('gallery')->name('pastoral-gallery.photos');
     Route::get('/jornal/{slug}/ler', [NewspaperFileController::class, 'preview'])->name('newspapers.preview');
     Route::get('/jornal/{slug}/baixar', [NewspaperFileController::class, 'download'])->name('newspapers.download');
     Route::get('/jornal/{slug}', [ContentController::class, 'show'])->defaults('module', 'jornal')->name('show.newspapers');

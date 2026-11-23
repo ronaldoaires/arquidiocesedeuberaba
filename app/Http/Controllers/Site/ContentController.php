@@ -5,10 +5,12 @@ namespace App\Http\Controllers\Site;
 use App\Http\Controllers\Controller;
 use App\Models\City;
 use App\Models\Event;
+use App\Models\PastoralGroup;
 use App\Services\VideoFeed;
 use App\Services\YouTubeVideoMetadata;
 use App\Support\ContentRegistry;
 use Illuminate\Contracts\View\View;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -77,6 +79,15 @@ class ContentController extends Controller
             'paroquia','clero' => ['assignments'], 'radio' => ['programs', 'tracks'], default => [],
         } as $relation) {
             $query = $record->{$relation}();
+            if ($module['source'] === 'pastoral' && in_array($relation, ['downloads', 'videos'], true)) {
+                $pageName = $relation.'_page';
+                $related[$relation] = $query->published()->orderByDesc('id')
+                    ->paginate($relation === 'videos' ? 8 : 10, ['*'], $pageName)
+                    ->withQueryString()->fragment($relation);
+                abort_if($related[$relation]->currentPage() > $related[$relation]->lastPage(), 404);
+
+                continue;
+            }
             if ($module['source'] === 'radio' && $relation === 'programs') {
                 $query->where('day', now('America/Sao_Paulo')->dayOfWeek);
             }
@@ -100,13 +111,30 @@ class ContentController extends Controller
             }
         }
         if ($module['source'] === 'pastoral') {
-            app(YouTubeVideoMetadata::class)->prime($related['videos']->pluck('video_id')->all());
+            app(YouTubeVideoMetadata::class)->prime($related['videos']->getCollection()->pluck('video_id')->all());
         }
         if ($module['source'] !== 'jornal' && config('migration.record_visits', true) && ! app()->runningUnitTests() && $record->getAttribute('visits') !== null) {
             $record->newQuery()->whereKey($record->id)->increment('visits', 1, in_array('last_visited_at', array_column($module['columns'], 'name'), true) ? ['last_visited_at' => now()] : []);
         }
 
         return view('site.show', ['module' => $module, 'record' => $record, 'title' => $record->display_title, 'related' => $related]);
+    }
+
+    public function pastoralGalleryPhotos(Request $request): JsonResponse
+    {
+        $group = PastoralGroup::published()->where('slug', $request->route('slug'))->firstOrFail();
+        $gallery = $group->galleries()->published()->findOrFail($request->route('gallery'));
+        $photos = $gallery->photos()->published()
+            ->whereNotNull('photo_path')->where('photo_path', '!=', '')
+            ->orderBy('id')->cursorPaginate(24, ['id', 'title', 'photo_path']);
+
+        return response()->json([
+            'photos' => $photos->getCollection()->map(fn ($photo): array => [
+                'url' => $photo->image_url,
+                'alt' => $photo->title ?: 'Foto da pastoral',
+            ])->values(),
+            'next' => $photos->nextPageUrl(),
+        ]);
     }
 
     public function agenda(Request $request): View

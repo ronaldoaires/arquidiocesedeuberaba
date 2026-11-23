@@ -22,7 +22,7 @@
         <h1 class="mb-5 text-3xl font-bold leading-tight text-stone-900 md:text-[2.5rem]">{{ $title }}</h1>
         <div class="editorial-content">{!! $record->safe_body !!}</div>
         @if($record->description)<div class="editorial-content mt-5">{!! app(App\Support\HtmlContent::class)->render($record->description) !!}</div>@endif
-        @if($module['source']==='radio')<section class="my-8 rounded-lg bg-brand-blue p-6 text-white"><h2 class="mb-4 text-2xl">Ouça a Rádio Metropolitana</h2><audio controls preload="none" class="w-full"><source src="{{ config('media.radio_stream') }}" type="audio/mpeg">Seu navegador não suporta áudio.</audio></section>@endif
+        @if($module['source']==='radio')<section class="my-8 rounded-lg bg-brand-blue p-6 text-white"><h2 class="mb-4 text-2xl">Ouça a Rádio Metropolitana</h2><iframe src="https://radio.escolaemrede.com.br/public/metropolitana/embed?hide_streams=1" title="Rádio Metropolitana ao vivo" frameborder="0" allowtransparency="true" style="width: 40%; min-height: 100px; height: 100px; border: 0;"></iframe></section>@endif
         @if($record->file_path)
             @if($module['source']==='jornal')
                 <div class="my-5 flex flex-wrap gap-3"><a class="button" data-file-preview data-file-title="{{ $record->display_title }}" data-file-type="{{ strtolower(pathinfo($record->file_path, PATHINFO_EXTENSION)) }}" data-file-download="{{ route('site.newspapers.download', $record->slug) }}" href="{{ route('site.newspapers.preview', $record->slug) }}">Abrir arquivo</a><a class="button" download href="{{ route('site.newspapers.download', $record->slug) }}">Baixar arquivo</a></div>

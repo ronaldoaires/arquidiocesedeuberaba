@@ -25,15 +25,23 @@ document.querySelectorAll('[data-carousel]').forEach((carousel) => {
 const dialog = document.querySelector('#media-dialog');
 let galleryLinks = [];
 let galleryIndex = 0;
+let galleryNextUrl = null;
+let galleryLoad = null;
+let galleryGeneration = 0;
+let galleryLazy = false;
+const updateGalleryControls = () => {
+    dialog.querySelector('[data-gallery-direction="-1"]').hidden = galleryLazy ? galleryIndex === 0 : galleryLinks.length < 2;
+    dialog.querySelector('[data-gallery-direction="1"]').hidden = galleryLazy ? galleryIndex >= galleryLinks.length - 1 && !galleryNextUrl : galleryLinks.length < 2;
+};
 const displayGalleryImage = (index) => {
-    galleryIndex = (index + galleryLinks.length) % galleryLinks.length;
+    galleryIndex = index;
     const link = galleryLinks[galleryIndex];
     const previous = dialog.querySelector('#dialog-image');
     const status = dialog.querySelector('[data-image-status]');
     const image = new Image();
     image.id = previous.id;
     image.className = previous.className;
-    image.alt = link.querySelector('img')?.alt ?? 'Imagem ampliada';
+    image.alt = link.alt;
     image.decoding = 'async';
     image.hidden = true;
     status.textContent = 'Carregando imagem…';
@@ -46,21 +54,70 @@ const displayGalleryImage = (index) => {
         if (image.isConnected) status.textContent = 'Não foi possível carregar esta imagem.';
     };
     previous.replaceWith(image);
-    image.src = link.href;
-    dialog.querySelectorAll('[data-gallery-direction]').forEach((button) => { button.hidden = galleryLinks.length < 2; });
+    image.src = link.url;
+    updateGalleryControls();
+};
+const loadGalleryPage = async () => {
+    if (galleryLoad) return galleryLoad;
+    if (!galleryNextUrl) return;
+    const url = galleryNextUrl;
+    const generation = galleryGeneration;
+    galleryLoad = (async () => {
+        try {
+            const response = await fetch(url, { headers: { Accept: 'application/json' } });
+            if (!response.ok) throw new Error('Gallery unavailable');
+            const page = await response.json();
+            if (generation !== galleryGeneration) return;
+            const existing = new Set(galleryLinks.map((item) => item.url));
+            for (const photo of page.photos) {
+                if (existing.has(photo.url)) continue;
+                galleryLinks.push(photo);
+                existing.add(photo.url);
+            }
+            galleryNextUrl = page.next;
+        } catch {
+            if (generation === galleryGeneration) dialog.querySelector('[data-image-status]').textContent = 'Não foi possível carregar mais fotos. Tente novamente.';
+        } finally {
+            if (generation === galleryGeneration) {
+                galleryLoad = null;
+                updateGalleryControls();
+            }
+        }
+    })();
+    return galleryLoad;
 };
 document.querySelectorAll('[data-lightbox]').forEach((link) => link.addEventListener('click', (event) => {
     event.preventDefault();
-    galleryLinks = link.dataset.gallery ? [...document.querySelectorAll('[data-lightbox]')].filter((item) => item.dataset.gallery === link.dataset.gallery) : link.closest('.gallery-photos') ? [...link.closest('.gallery-photos').querySelectorAll('[data-lightbox]')] : [link];
-    displayGalleryImage(galleryLinks.indexOf(link));
+    const links = link.dataset.gallery ? [...document.querySelectorAll('[data-lightbox]')].filter((item) => item.dataset.gallery === link.dataset.gallery) : link.closest('.gallery-photos') ? [...link.closest('.gallery-photos').querySelectorAll('[data-lightbox]')] : [link];
+    galleryGeneration += 1;
+    galleryLoad = null;
+    galleryNextUrl = link.dataset.galleryFeed || null;
+    galleryLazy = Boolean(galleryNextUrl);
+    galleryLinks = links.map((item) => ({ url: item.href, alt: item.querySelector('img')?.alt ?? 'Imagem ampliada' }));
+    displayGalleryImage(links.indexOf(link));
     dialog.showModal();
+    if (galleryNextUrl) void loadGalleryPage();
 }));
-dialog?.querySelectorAll('[data-gallery-direction]').forEach((button) => button.addEventListener('click', () => displayGalleryImage(galleryIndex + Number(button.dataset.galleryDirection))));
+const moveGalleryImage = async (direction) => {
+    if (!galleryLazy) {
+        if (galleryLinks.length > 1) displayGalleryImage((galleryIndex + direction + galleryLinks.length) % galleryLinks.length);
+        return;
+    }
+    if (direction > 0 && galleryIndex + 1 >= galleryLinks.length) await loadGalleryPage();
+    const nextIndex = galleryIndex + direction;
+    if (nextIndex >= 0 && nextIndex < galleryLinks.length) displayGalleryImage(nextIndex);
+};
+dialog?.querySelectorAll('[data-gallery-direction]').forEach((button) => button.addEventListener('click', () => void moveGalleryImage(Number(button.dataset.galleryDirection))));
 dialog?.addEventListener('keydown', (event) => {
-    if (event.key === 'ArrowLeft') displayGalleryImage(galleryIndex - 1);
-    if (event.key === 'ArrowRight') displayGalleryImage(galleryIndex + 1);
+    if (event.key === 'ArrowLeft') void moveGalleryImage(-1);
+    if (event.key === 'ArrowRight') void moveGalleryImage(1);
 });
 dialog?.querySelector('[data-close-dialog]')?.addEventListener('click', () => dialog.close());
+dialog?.addEventListener('close', () => {
+    galleryGeneration += 1;
+    galleryLoad = null;
+    galleryNextUrl = null;
+});
 document.querySelectorAll('[data-fallback-image]').forEach((image) => image.addEventListener('error', () => {
     if (image.src !== image.dataset.fallbackImage) image.src = image.dataset.fallbackImage;
 }, { once: true }));
@@ -76,8 +133,6 @@ document.querySelector('[data-nav-toggle]')?.addEventListener('click', (event) =
     const isOpen = menu.classList.toggle('is-open');
     button.setAttribute('aria-expanded', String(isOpen));
 });
-
-
 document.querySelectorAll('[data-hover-menu]').forEach((menu) => {
     const desktopQuery = menu.classList.contains('nav-dropdown') ? '(min-width: 1024px) and (hover: hover)' : '(min-width: 992px) and (hover: hover)';
     menu.addEventListener('mouseenter', () => {
@@ -150,17 +205,3 @@ document.querySelector('.support-form')?.addEventListener('change', (event) => {
         field.hidden = !input || input.value !== field.dataset.conditionValue;
     });
 });
-
-
-document.querySelectorAll('[data-inline-video]').forEach((link) => link.addEventListener('click', (event) => {
-    if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey || !/^[A-Za-z0-9_-]{11}$/.test(link.dataset.videoId || '')) return;
-    event.preventDefault();
-    const frame = document.createElement('iframe');
-    frame.className = 'aspect-video w-full border-0';
-    frame.title = link.dataset.videoTitle || 'Vídeo da pastoral';
-    frame.src = `https://www.youtube-nocookie.com/embed/${link.dataset.videoId}?autoplay=1`;
-    frame.allow = 'autoplay; encrypted-media; picture-in-picture';
-    frame.allowFullscreen = true;
-    frame.referrerPolicy = 'strict-origin-when-cross-origin';
-    link.replaceWith(frame);
-}));
